@@ -15,10 +15,13 @@ func TestExpand(t *testing.T) {
 	for _, p := range patterns {
 		g, err := gorex.New(p)
 		if err != nil {
-			t.Errorf("error occured at pattern: %s", err.Error())
+			t.Errorf("error occured at pattern %s: %s", p, err.Error())
 		}
 
-		e := g.Expand()
+		e, err := g.Expand()
+		if err != nil {
+			t.Errorf("error occured at pattern %s expantion: %s", p, err.Error())
+		}
 		if len(e) == 0 {
 			t.Errorf("%s does not expanded", p)
 		}
@@ -35,8 +38,22 @@ func TestExpandEmpty(t *testing.T) {
 	if err != nil {
 		t.Errorf("error occured at empty pattern: %s", err.Error())
 	}
-	s := g.Expand()
-	if len(s) > 0 {
-		t.Errorf("empty pattern expanded to %#v", s)
+	e, err := g.Expand()
+	if err != nil {
+		t.Errorf("error occured at empty pattern expand: %s", err.Error())
+	}
+	if len(e) > 0 {
+		t.Errorf("empty pattern expanded to %#v", e)
+	}
+}
+
+func TestExpandAsterisk(t *testing.T) {
+	g, err := gorex.New(".*")
+	if err != nil {
+		t.Errorf("error occured at empty pattern: %s", err.Error())
+	}
+	_, err = g.Expand()
+	if err == nil {
+		t.Errorf("should be error when expand asterisk")
 	}
 }
