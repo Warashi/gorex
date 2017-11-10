@@ -6,9 +6,20 @@ import (
 	"github.com/pkg/errors"
 )
 
+type set map[uint32]struct{}
+
+func (s set) copy() set {
+	d := make(set)
+	for k, v := range s {
+		d[k] = v
+	}
+	return d
+}
+
 type node struct {
-	s  string
-	pc uint32
+	s    string
+	pc   uint32
+	went set
 }
 
 type nodeStack []node
@@ -64,18 +75,18 @@ func New(pattern string) (Gorex, error) {
 }
 
 func (g gorex) Expand() ([]string, error) {
-	went := make(map[uint32]struct{})
-
 	var result []string
 	var s nodeStack
-	s.push(node{"", uint32(g.prog.Start)})
+	s.push(node{"", uint32(g.prog.Start), make(map[uint32]struct{})})
 
 	for len(s) > 0 {
 		n := s.pop()
 
-		if _, ok := went[n.pc]; ok {
+		if _, ok := n.went[n.pc]; ok {
 			return nil, errors.New("infinite loop exists")
 		}
+
+		went := n.went.copy()
 		went[n.pc] = struct{}{}
 
 		inst := g.prog.Inst[n.pc]
@@ -87,31 +98,31 @@ func (g gorex) Expand() ([]string, error) {
 			result = append(result, n.s)
 
 		case syntax.InstAlt:
-			s.push(node{n.s, inst.Arg})
-			s.push(node{n.s, inst.Out})
+			s.push(node{n.s, inst.Arg, went})
+			s.push(node{n.s, inst.Out, went})
 
 		case syntax.InstCapture, syntax.InstEmptyWidth:
-			s.push(node{n.s, inst.Out})
+			s.push(node{n.s, inst.Out, went})
 
 		case syntax.InstRuneAny:
 			rr := runeRanges{0, 1114111}
 			for _, r := range rr.strs() {
-				s.push(node{s: n.s + r, pc: inst.Out})
+				s.push(node{n.s + r, inst.Out, went})
 			}
 
 		case syntax.InstRuneAnyNotNL:
 			rr := runeRanges{0, 9, 11, 1114111}
 			for _, r := range rr.strs() {
-				s.push(node{s: n.s + r, pc: inst.Out})
+				s.push(node{n.s + r, inst.Out, went})
 			}
 
 		case syntax.InstRune:
 			for _, r := range runeRanges(inst.Rune).strs() {
-				s.push(node{s: n.s + r, pc: inst.Out})
+				s.push(node{n.s + r, inst.Out, went})
 			}
 
 		case syntax.InstRune1:
-			s.push(node{s: n.s + string(inst.Rune[0]), pc: inst.Out})
+			s.push(node{n.s + string(inst.Rune[0]), inst.Out, went})
 
 		default:
 			return nil, errors.New("not implemented")
