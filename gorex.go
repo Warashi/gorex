@@ -23,6 +23,24 @@ func (s *nodeStack) pop() node {
 	return n
 }
 
+type runeRanges []rune
+
+func (rr runeRanges) strs() []string {
+	var l int32
+	for i := 0; i < len(rr); i = i + 2 {
+		l += rr[i+1] - rr[i] + 1
+	}
+	result := make([]string, 0, l)
+
+	for i := 0; i < len(rr); i = i + 2 {
+		for r := rr[i]; r <= rr[i+1]; r++ {
+			result = append(result, string(r))
+		}
+	}
+
+	return result
+}
+
 type gorex struct {
 	prog *syntax.Prog
 }
@@ -62,6 +80,9 @@ func (g gorex) Expand() ([]string, error) {
 
 		inst := g.prog.Inst[n.pc]
 		switch inst.Op {
+		case syntax.InstNop:
+			return nil, nil
+
 		case syntax.InstMatch, syntax.InstFail:
 			result = append(result, n.s)
 
@@ -71,7 +92,31 @@ func (g gorex) Expand() ([]string, error) {
 
 		case syntax.InstCapture, syntax.InstEmptyWidth:
 			s.push(node{n.s, inst.Out})
+
+		case syntax.InstRuneAny:
+			rr := runeRanges{0, 1114111}
+			for _, r := range rr.strs() {
+				s.push(node{s: n.s + r, pc: inst.Out})
+			}
+
+		case syntax.InstRuneAnyNotNL:
+			rr := runeRanges{0, 9, 11, 1114111}
+			for _, r := range rr.strs() {
+				s.push(node{s: n.s + r, pc: inst.Out})
+			}
+
+		case syntax.InstRune:
+			for _, r := range runeRanges(inst.Rune).strs() {
+				s.push(node{s: n.s + r, pc: inst.Out})
+			}
+
+		case syntax.InstRune1:
+			s.push(node{s: n.s + string(inst.Rune[0]), pc: inst.Out})
+
+		default:
+			return nil, errors.New("not implemented")
 		}
+
 	}
 	return result, nil
 }
